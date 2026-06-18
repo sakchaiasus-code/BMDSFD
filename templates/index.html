@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beam Bending Calculator</title>
+<style>
+  :root {
+    --bg: #1e1e2e; --surface: #2a2a3e; --surface2: #313244;
+    --border: #45475a; --text: #cdd6f4; --sub: #9399b2;
+    --blue: #89b4fa; --green: #a6e3a1; --red: #f38ba8;
+    --yellow: #f9e2af; --purple: #cba6f7; --teal: #89dceb;
+    --orange: #fab387;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+  }
+
+  /* ── Top bar ── */
+  #topbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 100;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 12px;
+  }
+  #topbar .logo { font-size: 16px; font-weight: 700; color: var(--blue); white-space: nowrap; }
+  #topbar .logo span { font-size: 11px; font-weight: 400; color: var(--sub); margin-left: 6px; }
+  .stat-chip {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px; font-size: 11px;
+    display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  }
+  .stat-chip .val { font-weight: 700; }
+  .stat-chip.blue .val { color: var(--blue); }
+  .stat-chip.green .val { color: var(--green); }
+  .stat-chip.orange .val { color: var(--orange); }
+  #topbar-spacer { flex: 1; }
+
+  /* ── Layout ── */
+  #layout {
+    display: flex; position: fixed;
+    top: 52px; bottom: 0; left: 0; right: 0;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 380px; min-width: 380px;
+    background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    height: 100%; overflow: hidden;
+  }
+  #sidebar-body {
+    flex: 1; min-height: 0;          /* ← key fix: allows flex child to scroll */
+    overflow-y: auto; overflow-x: hidden;
+    padding: 14px; display: flex; flex-direction: column; gap: 12px;
+  }
+  #sidebar-body::-webkit-scrollbar { width: 5px; }
+  #sidebar-body::-webkit-scrollbar-track { background: transparent; }
+  #sidebar-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Cards ── */
+  .card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .card-header {
+    padding: 9px 14px; font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.04); border-bottom: 1px solid var(--border);
+    cursor: pointer; user-select: none;
+  }
+  .card-header:hover { background: rgba(255,255,255,0.07); }
+  .card-header .chevron { margin-left: auto; font-size: 10px; transition: transform .2s; }
+  .card-header.collapsed .chevron { transform: rotate(-90deg); }
+  .card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .card-body.hidden { display: none; }
+
+  /* ── Form elements ── */
+  label { font-size: 11px; color: var(--sub); display: block; margin-bottom: 3px; }
+  input[type=text], input[type=number], select {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: 12px;
+    outline: none; transition: border-color .2s;
+  }
+  input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(137,180,250,.12); }
+  input::placeholder { color: var(--border); }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+
+  /* ── Load items ── */
+  .load-item {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px 10px 10px;
+    position: relative; display: flex; flex-direction: column; gap: 8px;
+  }
+  .load-item-top { display: flex; align-items: center; gap: 6px; }
+  .load-num { font-size: 10px; color: var(--sub); font-weight: 600; }
+  .del-btn {
+    margin-left: auto; background: none; border: none; color: var(--red);
+    cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px;
+    transition: background .2s; line-height: 1;
+  }
+  .del-btn:hover { background: rgba(243,139,168,.15); }
+
+  /* ── Buttons ── */
+  .btn { border: none; border-radius: 7px; cursor: pointer; font-size: 12px;
+    font-weight: 600; padding: 8px 14px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all .2s; }
+  .btn-add {
+    background: rgba(137,180,250,.10); color: var(--blue);
+    border: 1px dashed rgba(137,180,250,.35); width: 100%; padding: 7px;
+  }
+  .btn-add:hover { background: rgba(137,180,250,.20); border-style: solid; }
+  .btn-calc {
+    background: linear-gradient(135deg, #89b4fa, #cba6f7);
+    color: #1e1e2e; font-size: 14px; padding: 12px;
+    width: 100%; border-radius: 8px; font-weight: 700; letter-spacing: .3px;
+    box-shadow: 0 2px 12px rgba(137,180,250,.25);
+  }
+  .btn-calc:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 5px 20px rgba(137,180,250,.35); }
+  .btn-calc:active { transform: translateY(0); }
+  .btn-preset {
+    background: rgba(166,227,161,.08); color: var(--green);
+    border: 1px solid rgba(166,227,161,.25); font-size: 11px; padding: 6px 10px;
+  }
+  .btn-preset:hover { background: rgba(166,227,161,.18); }
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* ── Beam type toggle ── */
+  .seg-ctrl { display: flex; background: var(--bg); border-radius: 8px; padding: 3px; gap: 3px; border: 1px solid var(--border); }
+  .seg-ctrl label {
+    flex: 1; text-align: center; padding: 7px 4px; border-radius: 6px; cursor: pointer;
+    font-size: 11px; font-weight: 600; color: var(--sub); transition: all .2s; margin: 0;
+  }
+  .seg-ctrl input[type=radio] { display: none; }
+  .seg-ctrl input[type=radio]:checked + label { background: var(--blue); color: #1e1e2e; }
+
+  /* ── Error ── */
+  .error-box {
+    background: rgba(243,139,168,.08); border: 1px solid rgba(243,139,168,.35);
+    color: var(--red); border-radius: 8px; padding: 12px 14px; font-size: 12px; display: none;
+    line-height: 1.7; white-space: pre-wrap;
+  }
+  .error-box .err-title {
+    font-weight: 700; font-size: 13px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .error-box .err-hint {
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(243,139,168,.2);
+    color: var(--orange); font-size: 11px;
+  }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid var(--border); }
+
+  /* ── Main panel ── */
+  #main {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column;
+    background: var(--bg); overflow: hidden;
+  }
+  #result-area {
+    flex: 1; min-height: 0;
+    overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column;
+    align-items: center; padding: 20px;
+    gap: 16px;
+  }
+  #result-area::-webkit-scrollbar { width: 6px; }
+  #result-area::-webkit-scrollbar-track { background: transparent; }
+  #result-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  #placeholder {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; color: var(--sub); gap: 14px;
+  }
+  #placeholder .big-icon { font-size: 72px; opacity: .25; }
+  #placeholder h3 { font-size: 16px; color: var(--text); }
+  #placeholder p { font-size: 13px; line-height: 1.6; }
+
+  #diagram-img {
+    width: 100%; max-width: 900px; border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5); display: none;
+  }
+
+  /* ── Reactions bar ── */
+  #reactions-bar {
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 10px 20px; display: none; flex-wrap: wrap;
+    gap: 8px; align-items: center; flex-shrink: 0;
+  }
+  .react-label { font-size: 11px; color: var(--sub); font-weight: 600; }
+  .react-item { font-size: 12px; color: var(--green); font-family: monospace; }
+  .react-sep { color: var(--border); }
+
+  /* ── Loading ── */
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid var(--border);
+    border-top-color: var(--blue); border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading { display: none; flex-direction: column; align-items: center; gap: 12px; color: var(--sub); font-size: 13px; padding: 40px; }
+
+  /* ── Scroll hint ── */
+  .scroll-hint { font-size: 10px; color: var(--border); text-align: center; padding: 4px 0 8px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="logo">🏗️ Beam Bending Calculator <span>SFD &amp; BMD</span></div>
+  <div id="topbar-spacer"></div>
+  <div class="stat-chip blue">V<sub style="font-size:9px">max</sub>&nbsp;<span class="val" id="stat-v">—</span>&nbsp;kN</div>
+  <div class="stat-chip green">M<sub style="font-size:9px">max</sub>&nbsp;<span class="val" id="stat-m">—</span>&nbsp;kN·m</div>
+  <div class="stat-chip orange">@x=&nbsp;<span class="val" id="stat-x">—</span>&nbsp;m</div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div id="layout">
+
+  <!-- ══════════ SIDEBAR ══════════ -->
+  <div id="sidebar">
+    <div id="sidebar-body">
+
+      <!-- Presets -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCard(this)">
+          <span>⚡</span> ตัวอย่างด่วน <span class="chevron">▼</span>
+        </div>
+        <div class="card-body">
+          <div class="preset-row">
+            <button class="btn btn-preset" onclick="loadPreset('ss_udl')">Simply + UDL</button>
+            <button class="btn btn-preset" onclick="loadPreset('cantilever')">Cantilever</button>
+            <button class="btn btn-preset" onclick="loadPreset('two_loads')">2 Point Loads</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Beam setup -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCard(this)">
+          <span>📐</span> ข้อมูลคาน <span class="chevron">▼</span>
+        </div>
+        <div class="card-body">
+          <div>
+            <label>ชื่อกราฟ</label>
+            <input id="title" type="text" placeholder="เช่น My Beam Analysis">
+          </div>
+          <div>
+            <label>ความยาวคาน L (m)</label>
+            <input id="length" type="number" value="10" min="0.1" step="0.5">
+          </div>
+          <div>
+            <label>ประเภทคาน</label>
+            <div class="seg-ctrl">
+              <input type="radio" name="btype" id="bt_simply" value="simply" checked>
+              <label for="bt_simply">Simply Supported</label>
+              <input type="radio" name="btype" id="bt_cant" value="cantilever">
+              <label for="bt_cant">Cantilever</label>
+            </div>
+          </div>
+          <div id="simply-inputs">
+            <div class="row2">
+              <div><label>ตำแหน่ง Pin (m)</label><input id="pin_pos" type="number" value="0" step="0.5"></div>
+              <div><label>ตำแหน่ง Roller (m)</label><input id="roller_pos" type="number" value="10" step="0.5"></div>
+            </div>
+          </div>
+          <div id="cant-inputs" style="display:none">
+            <label>ปลาย Fixed อยู่ที่</label>
+            <select id="fixed_side">
+              <option value="left">ซ้าย (x = 0)</option>
+              <option value="right">ขวา (x = L)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Point Loads -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCard(this)">
+          <span>↓</span> Point Loads
+          <span id="pl-count" style="font-size:10px;color:var(--blue);margin-left:4px"></span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="card-body">
+          <div id="pl-list"></div>
+          <button class="btn btn-add" onclick="addPL()">+ เพิ่ม Point Load</button>
+        </div>
+      </div>
+
+      <!-- UDL -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCard(this)">
+          <span>▓</span> Uniform Distributed Load (UDL)
+          <span id="udl-count" style="font-size:10px;color:var(--blue);margin-left:4px"></span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="card-body">
+          <div id="udl-list"></div>
+          <button class="btn btn-add" onclick="addUDL()">+ เพิ่ม UDL</button>
+        </div>
+      </div>
+
+      <!-- Moments -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCard(this)">
+          <span>↺</span> Applied Moments
+          <span id="mom-count" style="font-size:10px;color:var(--blue);margin-left:4px"></span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="card-body">
+          <div id="mom-list"></div>
+          <button class="btn btn-add" onclick="addMoment()">+ เพิ่ม Moment</button>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div class="error-box" id="err-box"></div>
+
+      <!-- Calculate -->
+      <button class="btn btn-calc" onclick="calculate()">⚙️ คำนวณและแสดงกราฟ</button>
+      <div class="scroll-hint">Ctrl+Enter เพื่อคำนวณ · เลื่อนขึ้นเพื่อดูผล</div>
+
+    </div><!-- /sidebar-body -->
+  </div><!-- /sidebar -->
+
+  <!-- ══════════ MAIN ══════════ -->
+  <div id="main">
+    <div id="result-area">
+
+      <div id="placeholder">
+        <div class="big-icon">🏗️</div>
+        <h3>ยังไม่มีผลลัพธ์</h3>
+        <p>กรอกข้อมูลด้านซ้าย<br>แล้วกดปุ่ม <strong style="color:var(--blue)">คำนวณและแสดงกราฟ</strong></p>
+      </div>
+
+      <div id="loading"><div class="spinner"></div><span>กำลังคำนวณ...</span></div>
+
+      <img id="diagram-img" alt="Beam Diagram">
+
+    </div><!-- /result-area -->
+
+    <div id="reactions-bar">
+      <span class="react-label">⚖️ Reactions:</span>
+      <span id="reactions-text"></span>
+    </div>
+  </div><!-- /main -->
+
+</div><!-- /layout -->
+
+<script>
+// ── beam type toggle ──
+document.querySelectorAll('input[name=btype]').forEach(r => r.addEventListener('change', () => {
+  const ss = document.getElementById('bt_simply').checked;
+  document.getElementById('simply-inputs').style.display = ss ? '' : 'none';
+  document.getElementById('cant-inputs').style.display   = ss ? 'none' : '';
+}));
+
+// ── card collapse ──
+function toggleCard(header) {
+  header.classList.toggle('collapsed');
+  const body = header.nextElementSibling;
+  body.classList.toggle('hidden');
+}
+
+// ── load counters ──
+let plId=0, udlId=0, momId=0;
+function updateCount(listId, countId) {
+  const n = document.getElementById(listId).children.length;
+  document.getElementById(countId).textContent = n ? `(${n})` : '';
+}
+
+// ── Add rows ──
+function addPL(pos='', mag='') {
+  plId++;
+  const id = plId;
+  const div = document.createElement('div');
+  div.className = 'load-item'; div.id = `pl-${id}`;
+  div.innerHTML = `
+    <div class="load-item-top">
+      <span class="load-num">Point Load #${document.getElementById('pl-list').children.length+1}</span>
+      <button class="del-btn" onclick="this.closest('.load-item').remove();updateCount('pl-list','pl-count')">✕</button>
+    </div>
+    <div class="row2">
+      <div><label>ตำแหน่ง x (m)</label><input type="number" id="pl-pos-${id}" value="${pos}" step="0.5" placeholder="0"></div>
+      <div><label>แรง (kN, + ลง)</label><input type="number" id="pl-mag-${id}" value="${mag}" step="1" placeholder="10"></div>
+    </div>`;
+  document.getElementById('pl-list').appendChild(div);
+  updateCount('pl-list','pl-count');
+}
+
+function addUDL(s='', e='', w='') {
+  udlId++;
+  const id = udlId;
+  const div = document.createElement('div');
+  div.className = 'load-item'; div.id = `udl-${id}`;
+  div.innerHTML = `
+    <div class="load-item-top">
+      <span class="load-num">UDL #${document.getElementById('udl-list').children.length+1}</span>
+      <button class="del-btn" onclick="this.closest('.load-item').remove();updateCount('udl-list','udl-count')">✕</button>
+    </div>
+    <div class="row3">
+      <div><label>เริ่ม x (m)</label><input type="number" id="udl-s-${id}" value="${s}" step="0.5"></div>
+      <div><label>สิ้นสุด x (m)</label><input type="number" id="udl-e-${id}" value="${e}" step="0.5"></div>
+      <div><label>w (kN/m, +ลง)</label><input type="number" id="udl-w-${id}" value="${w}" step="0.5"></div>
+    </div>`;
+  document.getElementById('udl-list').appendChild(div);
+  updateCount('udl-list','udl-count');
+}
+
+function addMoment(pos='', mag='') {
+  momId++;
+  const id = momId;
+  const div = document.createElement('div');
+  div.className = 'load-item'; div.id = `mom-${id}`;
+  div.innerHTML = `
+    <div class="load-item-top">
+      <span class="load-num">Moment #${document.getElementById('mom-list').children.length+1}</span>
+      <button class="del-btn" onclick="this.closest('.load-item').remove();updateCount('mom-list','mom-count')">✕</button>
+    </div>
+    <div class="row2">
+      <div><label>ตำแหน่ง x (m)</label><input type="number" id="mom-pos-${id}" value="${pos}" step="0.5"></div>
+      <div><label>M (kN·m, +ทวนเข็ม)</label><input type="number" id="mom-mag-${id}" value="${mag}" step="1"></div>
+    </div>`;
+  document.getElementById('mom-list').appendChild(div);
+  updateCount('mom-list','mom-count');
+}
+
+// ── Collect ──
+function collectPLs() {
+  return [...document.querySelectorAll('#pl-list .load-item')].map(el => {
+    const id = el.id.split('-')[1];
+    return { pos: document.getElementById(`pl-pos-${id}`).value,
+             mag: document.getElementById(`pl-mag-${id}`).value };
+  }).filter(d => d.pos !== '' && d.mag !== '');
+}
+function collectUDLs() {
+  return [...document.querySelectorAll('#udl-list .load-item')].map(el => {
+    const id = el.id.split('-')[1];
+    return { start: document.getElementById(`udl-s-${id}`).value,
+             end:   document.getElementById(`udl-e-${id}`).value,
+             w:     document.getElementById(`udl-w-${id}`).value };
+  }).filter(d => d.start !== '' && d.end !== '' && d.w !== '');
+}
+function collectMoments() {
+  return [...document.querySelectorAll('#mom-list .load-item')].map(el => {
+    const id = el.id.split('-')[1];
+    return { pos: document.getElementById(`mom-pos-${id}`).value,
+             mag: document.getElementById(`mom-mag-${id}`).value };
+  }).filter(d => d.pos !== '' && d.mag !== '');
+}
+
+// ── Calculate ──
+async function calculate() {
+  document.getElementById('err-box').style.display = 'none';
+  const btype = document.querySelector('input[name=btype]:checked').value;
+
+  const payload = {
+    title:       document.getElementById('title').value,
+    length:      document.getElementById('length').value,
+    beam_type:   btype,
+    pin_pos:     document.getElementById('pin_pos').value,
+    roller_pos:  document.getElementById('roller_pos').value,
+    fixed_side:  document.getElementById('fixed_side').value,
+    point_loads: collectPLs(),
+    udl:         collectUDLs(),
+    moments:     collectMoments(),
+  };
+
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('diagram-img').style.display = 'none';
+  document.getElementById('reactions-bar').style.display = 'none';
+  document.getElementById('loading').style.display = 'flex';
+
+  // scroll result area to top
+  document.getElementById('result-area').scrollTop = 0;
+
+  try {
+    const res  = await fetch('/calculate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const data = await res.json();
+    document.getElementById('loading').style.display = 'none';
+
+    if (!data.ok) {
+      showError(data.error);
+      document.getElementById('placeholder').style.display = 'flex';
+      return;
+    }
+
+    const img = document.getElementById('diagram-img');
+    img.src = 'data:image/png;base64,' + data.image;
+    img.style.display = 'block';
+
+    document.getElementById('stat-v').textContent = data.v_max;
+    document.getElementById('stat-m').textContent = data.m_max;
+    document.getElementById('stat-x').textContent = data.x_mmax;
+
+    const rb = document.getElementById('reactions-bar');
+    rb.style.display = 'flex';
+    document.getElementById('reactions-text').innerHTML =
+      data.reactions.map(r => `<span class="react-item">${r}</span>`)
+                    .join('<span class="react-sep"> | </span>');
+
+  } catch(e) {
+    document.getElementById('loading').style.display = 'none';
+    if (e.message === 'Failed to fetch' || e.name === 'TypeError') {
+      showError(
+        'ไม่สามารถเชื่อมต่อกับ server ได้',
+        '• ตรวจสอบว่ารัน Flask server อยู่หรือเปล่า\n• เปิดผ่าน http://localhost:5000 เท่านั้น\n• ห้ามเปิดไฟล์ HTML โดยตรง (file://)\n• ถ้ายังไม่ได้รัน ให้รัน: python app.py'
+      );
+    } else {
+      showError('เกิดข้อผิดพลาดที่ไม่คาดคิด', e.message);
+    }
+    document.getElementById('placeholder').style.display = 'flex';
+  }
+}
+
+// ── Presets ──
+function clearAll() {
+  ['pl-list','udl-list','mom-list'].forEach(id => document.getElementById(id).innerHTML = '');
+  ['pl-count','udl-count','mom-count'].forEach(id => document.getElementById(id).textContent = '');
+}
+
+function loadPreset(name) {
+  clearAll();
+  if (name === 'ss_udl') {
+    document.getElementById('bt_simply').checked = true;
+    document.getElementById('simply-inputs').style.display = '';
+    document.getElementById('cant-inputs').style.display = 'none';
+    document.getElementById('length').value = 10;
+    document.getElementById('pin_pos').value = 0;
+    document.getElementById('roller_pos').value = 10;
+    document.getElementById('title').value = 'Simply Supported + Point Load + UDL';
+    addPL(4, 20); addUDL(6, 10, 5);
+  } else if (name === 'cantilever') {
+    document.getElementById('bt_cant').checked = true;
+    document.getElementById('simply-inputs').style.display = 'none';
+    document.getElementById('cant-inputs').style.display = '';
+    document.getElementById('length').value = 6;
+    document.getElementById('fixed_side').value = 'left';
+    document.getElementById('title').value = 'Cantilever Beam';
+    addPL(6, 15); addUDL(0, 6, 3);
+  } else if (name === 'two_loads') {
+    document.getElementById('bt_simply').checked = true;
+    document.getElementById('simply-inputs').style.display = '';
+    document.getElementById('cant-inputs').style.display = 'none';
+    document.getElementById('length').value = 8;
+    document.getElementById('pin_pos').value = 0;
+    document.getElementById('roller_pos').value = 8;
+    document.getElementById('title').value = 'Simply Supported + 2 Point Loads';
+    addPL(2, 10); addPL(5, 25);
+  }
+}
+
+document.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') calculate(); });
+
+// ── show error ──
+function showError(title, detail='') {
+  const box = document.getElementById('err-box');
+  box.innerHTML = `<div class="err-title">⚠️ ${escHtml(title)}</div>`
+    + (detail ? `<div>${escHtml(detail)}</div>` : '');
+  if (title.includes('server') || title.includes('localhost')) {
+    box.innerHTML += `<div class="err-hint">💡 วิธีเปิดที่ถูกต้อง: รัน <code style="background:rgba(255,255,255,.1);padding:1px 5px;border-radius:3px">python app.py</code> แล้วเปิด <strong>http://localhost:5000</strong></div>`;
+  }
+  box.style.display = 'block';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+</script>
+</body>
+</html>
